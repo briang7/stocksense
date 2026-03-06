@@ -1,12 +1,12 @@
-import type { ServerWebSocket } from '@hono/node-ws'
+import type { WSContext } from 'hono/ws'
 import { fetchQuote } from './yahoo-finance.js'
 
 class PriceStreamManager {
-  private subscriptions = new Map<ServerWebSocket, Set<string>>()
+  private subscriptions = new Map<WSContext, Set<string>>()
   private intervalId: ReturnType<typeof setInterval> | null = null
   private lastPrices = new Map<string, number>()
 
-  subscribe(ws: ServerWebSocket, symbol: string): void {
+  subscribe(ws: WSContext, symbol: string): void {
     if (!this.subscriptions.has(ws)) {
       this.subscriptions.set(ws, new Set())
     }
@@ -14,7 +14,7 @@ class PriceStreamManager {
     this.ensurePolling()
   }
 
-  unsubscribe(ws: ServerWebSocket, symbol: string): void {
+  unsubscribe(ws: WSContext, symbol: string): void {
     const symbols = this.subscriptions.get(ws)
     if (symbols) {
       symbols.delete(symbol.toUpperCase())
@@ -23,7 +23,7 @@ class PriceStreamManager {
     this.checkStopPolling()
   }
 
-  removeClient(ws: ServerWebSocket): void {
+  removeClient(ws: WSContext): void {
     this.subscriptions.delete(ws)
     this.checkStopPolling()
   }

@@ -44,7 +44,7 @@ export function SectorPerformance() {
           <YAxis type="category" dataKey="name" width={55}
             tick={{ fill: '#a1a1aa', fontSize: 11 }} axisLine={false} tickLine={false} />
           <Tooltip
-            formatter={(value: number) => [`${value >= 0 ? '+' : ''}${value.toFixed(2)}%`, 'Change']}
+            formatter={(value: number | undefined) => [`${(value ?? 0) >= 0 ? '+' : ''}${(value ?? 0).toFixed(2)}%`, 'Change']}
             contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
             labelStyle={{ color: '#a1a1aa' }}
           />
