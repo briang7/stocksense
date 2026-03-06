@@ -8,7 +8,11 @@
       "Bash(npx shadcn@latest:*)",
       "Bash(rm:*)",
       "Bash(mkdir:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(timeout 5 npx tsx:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
