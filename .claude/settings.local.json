@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/inetpub/wwwroot/vite/**)",
+      "Bash(npm create vite@latest stocksense-tmp -- --template react-ts)",
+      "Bash(cp:*)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}
