@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as ScreenerRouteImport } from './routes/screener'
-import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StockTickerRouteImport } from './routes/stock.$ticker'
 
@@ -23,11 +22,6 @@ const WatchlistRoute = WatchlistRouteImport.update({
 const ScreenerRoute = ScreenerRouteImport.update({
   id: '/screener',
   path: '/screener',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortfolioRoute = PortfolioRouteImport.update({
-  id: '/portfolio',
-  path: '/portfolio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -43,14 +37,12 @@ const StockTickerRoute = StockTickerRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/portfolio': typeof PortfolioRoute
   '/screener': typeof ScreenerRoute
   '/watchlist': typeof WatchlistRoute
   '/stock/$ticker': typeof StockTickerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/portfolio': typeof PortfolioRoute
   '/screener': typeof ScreenerRoute
   '/watchlist': typeof WatchlistRoute
   '/stock/$ticker': typeof StockTickerRoute
@@ -58,28 +50,20 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/portfolio': typeof PortfolioRoute
   '/screener': typeof ScreenerRoute
   '/watchlist': typeof WatchlistRoute
   '/stock/$ticker': typeof StockTickerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/portfolio' | '/screener' | '/watchlist' | '/stock/$ticker'
+  fullPaths: '/' | '/screener' | '/watchlist' | '/stock/$ticker'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/portfolio' | '/screener' | '/watchlist' | '/stock/$ticker'
-  id:
-    | '__root__'
-    | '/'
-    | '/portfolio'
-    | '/screener'
-    | '/watchlist'
-    | '/stock/$ticker'
+  to: '/' | '/screener' | '/watchlist' | '/stock/$ticker'
+  id: '__root__' | '/' | '/screener' | '/watchlist' | '/stock/$ticker'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  PortfolioRoute: typeof PortfolioRoute
   ScreenerRoute: typeof ScreenerRoute
   WatchlistRoute: typeof WatchlistRoute
   StockTickerRoute: typeof StockTickerRoute
@@ -101,13 +85,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScreenerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/portfolio': {
-      id: '/portfolio'
-      path: '/portfolio'
-      fullPath: '/portfolio'
-      preLoaderRoute: typeof PortfolioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -127,7 +104,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  PortfolioRoute: PortfolioRoute,
   ScreenerRoute: ScreenerRoute,
   WatchlistRoute: WatchlistRoute,
   StockTickerRoute: StockTickerRoute,

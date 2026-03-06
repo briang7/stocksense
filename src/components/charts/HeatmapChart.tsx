@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import * as d3 from 'd3'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuotes } from '@/hooks/useStockData'
-import { formatPercent } from '@/lib/format'
+import { formatPercent, formatPrice, formatVolume } from '@/lib/format'
 
 const HEATMAP_STOCKS = [
   { symbol: 'AAPL', sector: 'Tech', cap: 3000 },
@@ -37,10 +37,47 @@ const HEATMAP_STOCKS = [
   { symbol: 'NEE', sector: 'Utilities', cap: 150 },
 ]
 
+type SizeBy = 'marketCap' | 'price' | 'volume' | 'dollarVolume' | 'change'
+
+const SIZE_OPTIONS: { value: SizeBy; label: string }[] = [
+  { value: 'marketCap', label: 'Market Cap' },
+  { value: 'price', label: 'Price' },
+  { value: 'volume', label: 'Volume' },
+  { value: 'dollarVolume', label: '$ Volume' },
+  { value: 'change', label: '% Change' },
+]
+
+function getTileValue(
+  sizeBy: SizeBy,
+  stock: (typeof HEATMAP_STOCKS)[number],
+  quote: { price: number; volume: number; changePercent: number }
+): number {
+  switch (sizeBy) {
+    case 'marketCap': return stock.cap
+    case 'price': return quote.price
+    case 'volume': return quote.volume || 1
+    case 'dollarVolume': return (quote.price * (quote.volume || 1))
+    case 'change': return Math.abs(quote.changePercent) || 0.01
+  }
+}
+
+function getSubLabel(
+  sizeBy: SizeBy,
+  quote: { price: number; volume: number; changePercent: number }
+): string {
+  switch (sizeBy) {
+    case 'volume': return formatVolume(quote.volume)
+    case 'dollarVolume': return '$' + formatVolume(quote.price * (quote.volume || 0))
+    case 'price': return formatPrice(quote.price)
+    default: return formatPercent(quote.changePercent)
+  }
+}
+
 export function HeatmapChart() {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const [width, setWidth] = useState(800)
+  const [width, setWidth] = useState(0)
+  const [sizeBy, setSizeBy] = useState<SizeBy>('marketCap')
   const navigate = useNavigate()
   const height = 400
 
@@ -58,21 +95,46 @@ export function HeatmapChart() {
   }, [])
 
   useEffect(() => {
-    if (!svgRef.current || !quotes || quotes.length === 0) return
+    if (!svgRef.current || !containerRef.current || !quotes || quotes.length === 0 || width === 0) return
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
     svg.attr('width', width).attr('height', height)
 
+    // Tooltip
+    d3.select(containerRef.current).selectAll('.heatmap-tooltip').remove()
+    const tooltip = d3.select(containerRef.current)
+      .append('div')
+      .attr('class', 'heatmap-tooltip')
+      .style('position', 'absolute')
+      .style('pointer-events', 'none')
+      .style('opacity', 0)
+      .style('background', 'rgba(24, 24, 27, 0.95)')
+      .style('border', '1px solid rgba(63, 63, 70, 0.5)')
+      .style('border-radius', '8px')
+      .style('padding', '8px 12px')
+      .style('font-size', '12px')
+      .style('color', '#e4e4e7')
+      .style('white-space', 'nowrap')
+      .style('z-index', '50')
+      .style('box-shadow', '0 4px 12px rgba(0,0,0,0.4)')
+
     const quoteMap = new Map(quotes.map((q) => [q.symbol, q]))
 
-    // Build hierarchy
-    const sectors = new Map<string, { symbol: string; cap: number; change: number }[]>()
+    const sectors = new Map<string, { symbol: string; value: number; change: number; subLabel: string; price: number; volume: number; name: string }[]>()
     for (const stock of HEATMAP_STOCKS) {
       const quote = quoteMap.get(stock.symbol)
       if (!quote) continue
       const list = sectors.get(stock.sector) || []
-      list.push({ symbol: stock.symbol, cap: stock.cap, change: quote.changePercent })
+      list.push({
+        symbol: stock.symbol,
+        value: getTileValue(sizeBy, stock, quote),
+        change: quote.changePercent,
+        subLabel: getSubLabel(sizeBy, quote),
+        price: quote.price,
+        volume: quote.volume,
+        name: quote.name,
+      })
       sectors.set(stock.sector, list)
     }
 
@@ -80,7 +142,15 @@ export function HeatmapChart() {
       name: 'root',
       children: Array.from(sectors.entries()).map(([sector, stocks]) => ({
         name: sector,
-        children: stocks.map((s) => ({ name: s.symbol, value: s.cap, change: s.change })),
+        children: stocks.map((s) => ({
+          name: s.symbol,
+          value: s.value,
+          change: s.change,
+          subLabel: s.subLabel,
+          price: s.price,
+          volume: s.volume,
+          fullName: s.name,
+        })),
       })),
     }
 
@@ -115,10 +185,31 @@ export function HeatmapChart() {
       .attr('height', (d: any) => Math.max(0, d.y1 - d.y0))
       .attr('fill', (d: any) => colorScale(d.data.change))
       .attr('rx', 3)
-      .on('mouseenter', function () { d3.select(this).attr('opacity', 0.85) })
-      .on('mouseleave', function () { d3.select(this).attr('opacity', 1) })
 
-    // Labels
+    groups
+      .on('mouseenter', function (_event: any, d: any) {
+        d3.select(this).select('rect').attr('opacity', 0.85)
+        const data = d.data
+        const changeColor = data.change >= 0 ? '#4ade80' : '#f87171'
+        tooltip.html(
+          `<div style="font-weight:600;margin-bottom:2px">${data.name} <span style="color:#a1a1aa">${data.fullName || ''}</span></div>` +
+          `<div>${formatPrice(data.price)} <span style="color:${changeColor};font-weight:500">${formatPercent(data.change)}</span></div>` +
+          (data.volume ? `<div style="color:#a1a1aa">Vol: ${formatVolume(data.volume)}</div>` : '')
+        ).style('opacity', 1)
+      })
+      .on('mousemove', function (event: any) {
+        const rect = containerRef.current!.getBoundingClientRect()
+        const x = event.clientX - rect.left
+        const y = event.clientY - rect.top
+        tooltip
+          .style('left', (x + 12) + 'px')
+          .style('top', (y - 10) + 'px')
+      })
+      .on('mouseleave', function () {
+        d3.select(this).select('rect').attr('opacity', 1)
+        tooltip.style('opacity', 0)
+      })
+
     groups.each(function (d: any) {
       const w = d.x1 - d.x0
       const h = d.y1 - d.y0
@@ -140,7 +231,7 @@ export function HeatmapChart() {
           .attr('text-anchor', 'middle')
           .attr('fill', 'rgba(255,255,255,0.7)')
           .attr('font-size', w > 80 ? '11px' : '9px')
-          .text(formatPercent(d.data.change))
+          .text(d.data.subLabel)
       } else if (w > 25 && h > 18) {
         g.append('text')
           .attr('x', w / 2)
@@ -153,22 +244,35 @@ export function HeatmapChart() {
       }
     })
 
-  }, [quotes, width, navigate])
-
-  if (isLoading) {
-    return (
-      <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/30 p-4">
-        <h3 className="mb-3 text-sm font-medium text-zinc-400">Market Heatmap</h3>
-        <div className="h-96 animate-pulse rounded bg-zinc-800/50" />
-      </div>
-    )
-  }
+  }, [quotes, width, sizeBy, navigate])
 
   return (
     <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/30 p-4">
-      <h3 className="mb-3 text-sm font-medium text-zinc-400">Market Heatmap</h3>
-      <div ref={containerRef} className="w-full">
-        <svg ref={svgRef} />
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-zinc-400">Market Heatmap</h3>
+        <div className="flex items-center gap-1">
+          <span className="mr-1 text-xs text-zinc-500">Size by:</span>
+          {SIZE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setSizeBy(opt.value)}
+              className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${
+                sizeBy === opt.value
+                  ? 'bg-zinc-800 text-zinc-100'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div ref={containerRef} className="relative w-full">
+        {isLoading || quotes.length === 0 ? (
+          <div className="h-96 animate-pulse rounded bg-zinc-800/50" />
+        ) : (
+          <svg ref={svgRef} />
+        )}
       </div>
     </div>
   )

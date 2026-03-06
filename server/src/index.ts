@@ -5,7 +5,6 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { stocks } from './routes/stocks.js'
-import { portfolio } from './routes/portfolio.js'
 import { watchlist } from './routes/watchlist.js'
 import { priceStream } from './services/websocket.js'
 
@@ -20,7 +19,6 @@ app.get('/api/health', (c) => {
 })
 
 app.route('/api/stocks', stocks)
-app.route('/api/portfolio', portfolio)
 app.route('/api/watchlist', watchlist)
 
 app.get(

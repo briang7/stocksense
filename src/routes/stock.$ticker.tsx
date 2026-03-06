@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useChart } from '@/hooks/useStockData'
 import { useStockWebSocket } from '@/hooks/useWebSocket'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -27,6 +27,15 @@ function StockDetail() {
   const { data, isLoading, error } = useChart(ticker, chartParams.interval, chartParams.period1, chartParams.period2)
 
   useStockWebSocket(ticker)
+
+  const [visibleRange, setVisibleRange] = useState<[number, number] | undefined>()
+  const rafRef = useRef<number>(0)
+  const onVisibleRangeChange = useCallback((indexRange: [number, number]) => {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      setVisibleRange(indexRange)
+    })
+  }, [])
 
   const indicatorData = useMemo(() => {
     if (!data) return {}
@@ -83,10 +92,11 @@ function StockDetail() {
           ema: indicatorData.ema,
           bollingerBands: indicatorData.bollingerBands,
         }}
+        onVisibleRangeChange={onVisibleRangeChange}
       />
 
-      {indicatorData.rsi && <RsiChart bars={bars} rsiValues={indicatorData.rsi} />}
-      {indicatorData.macd && <MacdChart bars={bars} macdValues={indicatorData.macd} />}
+      {indicatorData.rsi && <RsiChart bars={bars} rsiValues={indicatorData.rsi} visibleRange={visibleRange} interval={chartParams.interval} />}
+      {indicatorData.macd && <MacdChart bars={bars} macdValues={indicatorData.macd} visibleRange={visibleRange} interval={chartParams.interval} />}
 
       <CompanyInfo quote={quote} />
     </div>

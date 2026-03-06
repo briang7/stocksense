@@ -4,7 +4,6 @@ import { SearchBar } from './SearchBar'
 export function Navbar() {
   const links = [
     { to: '/' as const, label: 'Market' },
-    { to: '/portfolio' as const, label: 'Portfolio' },
     { to: '/watchlist' as const, label: 'Watchlist' },
     { to: '/screener' as const, label: 'Screener' },
   ]

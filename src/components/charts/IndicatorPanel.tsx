@@ -1,14 +1,17 @@
 import { useRef, useEffect, useState } from 'react'
 import * as d3 from 'd3'
 import type { OhlcvBar } from '@/lib/api'
+import { formatDate } from '@/lib/format'
 
 interface RsiChartProps {
   bars: OhlcvBar[]
   rsiValues: (number | null)[]
   height?: number
+  interval?: string
+  visibleRange?: [number, number]
 }
 
-export function RsiChart({ bars, rsiValues, height = 120 }: RsiChartProps) {
+export function RsiChart({ bars, rsiValues, height = 120, interval = '1d', visibleRange }: RsiChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [width, setWidth] = useState(800)
@@ -39,19 +42,26 @@ export function RsiChart({ bars, rsiValues, height = 120 }: RsiChartProps) {
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`)
 
-    const xScale = d3.scaleTime()
-      .domain(d3.extent(bars, (d) => new Date(d.timestamp)) as [Date, Date])
+    const idxMin = visibleRange ? visibleRange[0] : 0
+    const idxMax = visibleRange ? visibleRange[1] : bars.length - 1
+
+    const xScale = d3.scaleLinear()
+      .domain([idxMin, idxMax])
       .range([0, innerWidth])
 
     const yScale = d3.scaleLinear().domain([0, 100]).range([innerHeight, 0])
 
+    svg.append('defs').append('clipPath').attr('id', 'rsi-clip')
+      .append('rect').attr('width', innerWidth).attr('height', innerHeight)
+    const chartArea = g.append('g').attr('clip-path', 'url(#rsi-clip)')
+
     // Overbought/oversold zones
-    g.append('rect')
+    chartArea.append('rect')
       .attr('x', 0).attr('y', yScale(100)).attr('width', innerWidth)
       .attr('height', yScale(70) - yScale(100))
       .attr('fill', 'rgba(239, 68, 68, 0.05)')
 
-    g.append('rect')
+    chartArea.append('rect')
       .attr('x', 0).attr('y', yScale(30)).attr('width', innerWidth)
       .attr('height', yScale(0) - yScale(30))
       .attr('fill', 'rgba(16, 185, 129, 0.05)')
@@ -67,17 +77,40 @@ export function RsiChart({ bars, rsiValues, height = 120 }: RsiChartProps) {
 
     // RSI line
     const lineData = bars
-      .map((bar, i) => ({ x: new Date(bar.timestamp), y: rsiValues[i] }))
-      .filter((d): d is { x: Date; y: number } => d.y !== null)
+      .map((_bar, i) => ({ idx: i, y: rsiValues[i] }))
+      .filter((d): d is { idx: number; y: number } => d.y !== null)
 
-    const line = d3.line<{ x: Date; y: number }>().x((d) => xScale(d.x)).y((d) => yScale(d.y))
+    const line = d3.line<{ idx: number; y: number }>()
+      .x((d) => xScale(d.idx))
+      .y((d) => yScale(d.y))
 
-    g.append('path')
+    chartArea.append('path')
       .datum(lineData)
       .attr('fill', 'none')
       .attr('stroke', '#a78bfa')
       .attr('stroke-width', 1.5)
       .attr('d', line)
+
+    // X axis with timestamp labels
+    const visibleCount = idxMax - idxMin + 1
+    const tickCount = Math.min(8, visibleCount)
+    const tickStep = Math.max(1, Math.floor(visibleCount / tickCount))
+    const tickIndices: number[] = []
+    for (let i = idxMin; i <= idxMax; i += tickStep) {
+      tickIndices.push(i)
+    }
+
+    const xAxis = g.append('g').attr('transform', `translate(0,${innerHeight})`)
+    xAxis.append('line').attr('x1', 0).attr('x2', innerWidth).attr('stroke', '#27272a')
+    xAxis.selectAll('text')
+      .data(tickIndices)
+      .join('text')
+      .attr('x', (i) => xScale(i))
+      .attr('y', 14)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#71717a')
+      .attr('font-size', '10px')
+      .text((i) => bars[i] ? formatDate(bars[i].timestamp, interval) : '')
 
     // Y axis
     g.append('g')
@@ -89,7 +122,7 @@ export function RsiChart({ bars, rsiValues, height = 120 }: RsiChartProps) {
     // Label
     g.append('text').attr('x', 4).attr('y', 12).attr('fill', '#71717a').attr('font-size', '10px').text('RSI(14)')
 
-  }, [bars, rsiValues, width, height])
+  }, [bars, rsiValues, width, height, visibleRange, interval])
 
   return (
     <div ref={containerRef} className="w-full">
@@ -102,9 +135,11 @@ interface MacdChartProps {
   bars: OhlcvBar[]
   macdValues: ({ macd: number; signal: number; histogram: number } | null)[]
   height?: number
+  interval?: string
+  visibleRange?: [number, number]
 }
 
-export function MacdChart({ bars, macdValues, height = 120 }: MacdChartProps) {
+export function MacdChart({ bars, macdValues, height = 120, interval = '1d', visibleRange }: MacdChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [width, setWidth] = useState(800)
@@ -135,16 +170,29 @@ export function MacdChart({ bars, macdValues, height = 120 }: MacdChartProps) {
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`)
 
-    const xScale = d3.scaleTime()
-      .domain(d3.extent(bars, (d) => new Date(d.timestamp)) as [Date, Date])
+    const idxMin = visibleRange ? visibleRange[0] : 0
+    const idxMax = visibleRange ? visibleRange[1] : bars.length - 1
+
+    const xScale = d3.scaleLinear()
+      .domain([idxMin, idxMax])
       .range([0, innerWidth])
 
-    const validValues = macdValues.filter((v): v is NonNullable<typeof v> => v !== null)
-    if (validValues.length === 0) return
+    // Filter to visible range for Y scale
+    const allIndexedData = bars
+      .map((_bar, i) => ({ idx: i, val: macdValues[i] }))
+      .filter((d): d is { idx: number; val: NonNullable<typeof d.val> } => d.val !== null)
 
-    const allValues = validValues.flatMap((v) => [v.macd, v.signal, v.histogram])
+    const visibleData = allIndexedData.filter((d) => d.idx >= idxMin && d.idx <= idxMax)
+    const dataForYScale = visibleData.length > 0 ? visibleData : allIndexedData
+    if (dataForYScale.length === 0) return
+
+    const allValues = dataForYScale.flatMap((v) => [v.val.macd, v.val.signal, v.val.histogram])
     const yExtent = d3.extent(allValues) as [number, number]
     const yScale = d3.scaleLinear().domain(yExtent).range([innerHeight, 0]).nice()
+
+    svg.append('defs').append('clipPath').attr('id', 'macd-clip')
+      .append('rect').attr('width', innerWidth).attr('height', innerHeight)
+    const chartArea = g.append('g').attr('clip-path', 'url(#macd-clip)')
 
     // Zero line
     g.append('line')
@@ -153,27 +201,46 @@ export function MacdChart({ bars, macdValues, height = 120 }: MacdChartProps) {
       .attr('stroke', '#3f3f46')
 
     // Histogram bars
-    const barWidth = Math.max(1, (innerWidth / bars.length) * 0.6)
-    const histData = bars.map((bar, i) => ({ x: new Date(bar.timestamp), val: macdValues[i] }))
-      .filter((d): d is { x: Date; val: NonNullable<typeof d.val> } => d.val !== null)
+    const visibleCount = idxMax - idxMin + 1
+    const barWidth = Math.max(1, (innerWidth / visibleCount) * 0.6)
 
-    g.selectAll('.hist')
-      .data(histData)
+    chartArea.selectAll('.hist')
+      .data(allIndexedData)
       .join('rect')
-      .attr('x', (d) => xScale(d.x) - barWidth / 2)
+      .attr('x', (d) => xScale(d.idx) - barWidth / 2)
       .attr('y', (d) => d.val.histogram >= 0 ? yScale(d.val.histogram) : yScale(0))
       .attr('width', barWidth)
       .attr('height', (d) => Math.abs(yScale(d.val.histogram) - yScale(0)))
       .attr('fill', (d) => d.val.histogram >= 0 ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)')
 
     // MACD and signal lines
-    const macdLine = d3.line<{ x: Date; val: NonNullable<(typeof macdValues)[number]> }>()
-      .x((d) => xScale(d.x)).y((d) => yScale(d.val.macd))
-    const signalLine = d3.line<{ x: Date; val: NonNullable<(typeof macdValues)[number]> }>()
-      .x((d) => xScale(d.x)).y((d) => yScale(d.val.signal))
+    const macdLine = d3.line<(typeof allIndexedData)[number]>()
+      .x((d) => xScale(d.idx)).y((d) => yScale(d.val.macd))
+    const signalLine = d3.line<(typeof allIndexedData)[number]>()
+      .x((d) => xScale(d.idx)).y((d) => yScale(d.val.signal))
 
-    g.append('path').datum(histData).attr('fill', 'none').attr('stroke', '#3b82f6').attr('stroke-width', 1.5).attr('d', macdLine)
-    g.append('path').datum(histData).attr('fill', 'none').attr('stroke', '#f97316').attr('stroke-width', 1.5).attr('d', signalLine)
+    chartArea.append('path').datum(allIndexedData).attr('fill', 'none').attr('stroke', '#3b82f6').attr('stroke-width', 1.5).attr('d', macdLine)
+    chartArea.append('path').datum(allIndexedData).attr('fill', 'none').attr('stroke', '#f97316').attr('stroke-width', 1.5).attr('d', signalLine)
+
+    // X axis with timestamp labels
+    const tickCount = Math.min(8, visibleCount)
+    const tickStep = Math.max(1, Math.floor(visibleCount / tickCount))
+    const tickIndices: number[] = []
+    for (let i = idxMin; i <= idxMax; i += tickStep) {
+      tickIndices.push(i)
+    }
+
+    const xAxis = g.append('g').attr('transform', `translate(0,${innerHeight})`)
+    xAxis.append('line').attr('x1', 0).attr('x2', innerWidth).attr('stroke', '#27272a')
+    xAxis.selectAll('text')
+      .data(tickIndices)
+      .join('text')
+      .attr('x', (i) => xScale(i))
+      .attr('y', 14)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#71717a')
+      .attr('font-size', '10px')
+      .text((i) => bars[i] ? formatDate(bars[i].timestamp, interval) : '')
 
     // Y axis
     g.append('g')
@@ -185,7 +252,7 @@ export function MacdChart({ bars, macdValues, height = 120 }: MacdChartProps) {
     // Label
     g.append('text').attr('x', 4).attr('y', 12).attr('fill', '#71717a').attr('font-size', '10px').text('MACD(12,26,9)')
 
-  }, [bars, macdValues, width, height])
+  }, [bars, macdValues, width, height, visibleRange, interval])
 
   return (
     <div ref={containerRef} className="w-full">

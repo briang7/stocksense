@@ -24,17 +24,6 @@ export const api = {
     quotes: (symbols: string[]) => fetcher<StockQuote[]>(`/stocks/quotes?symbols=${symbols.join(',')}`),
     search: (q: string) => fetcher<SearchResult[]>(`/stocks/search?q=${q}`),
   },
-  portfolio: {
-    list: () => fetcher<Portfolio[]>('/portfolio'),
-    get: (id: number) => fetcher<PortfolioWithHoldings>(`/portfolio/${id}`),
-    create: (name: string) => fetcher<Portfolio>('/portfolio', { method: 'POST', body: JSON.stringify({ name }) }),
-    delete: (id: number) => fetcher('/portfolio/' + id, { method: 'DELETE' }),
-    addHolding: (id: number, data: NewHolding) =>
-      fetcher<Holding>(`/portfolio/${id}/holdings`, { method: 'POST', body: JSON.stringify(data) }),
-    deleteHolding: (id: number, holdingId: number) =>
-      fetcher(`/portfolio/${id}/holdings/${holdingId}`, { method: 'DELETE' }),
-    transactions: (id: number) => fetcher<Transaction[]>(`/portfolio/${id}/transactions`),
-  },
   watchlist: {
     list: () => fetcher<Watchlist[]>('/watchlist'),
     get: (id: number) => fetcher<WatchlistWithItems>(`/watchlist/${id}`),
@@ -61,16 +50,7 @@ export interface StockQuote {
   volume: number; marketCap: number; name: string; exchange: string
 }
 export interface SearchResult { symbol: string; name: string; exchange: string; type: string }
-export interface Portfolio { id: number; name: string; createdAt: string }
-export interface Holding {
-  id: number; portfolioId: number; symbol: string; shares: number; buyPrice: number; buyDate: string
-}
-export interface PortfolioWithHoldings extends Portfolio { holdings: Holding[] }
-export interface NewHolding { symbol: string; shares: number; buyPrice: number; buyDate: string }
-export interface Transaction {
-  id: number; portfolioId: number; symbol: string; type: 'buy' | 'sell'
-  shares: number; price: number; date: string
-}
+
 export interface Watchlist { id: number; name: string; createdAt: string }
 export interface WatchlistItem { id: number; watchlistId: number; symbol: string; addedAt: string }
 export interface WatchlistWithItems extends Watchlist { items: WatchlistItem[] }
