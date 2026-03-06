@@ -1,12 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useChart } from '@/hooks/useStockData'
 import { useStockWebSocket } from '@/hooks/useWebSocket'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { CandlestickChart } from '@/components/charts/CandlestickChart'
 import { RsiChart, MacdChart } from '@/components/charts/IndicatorPanel'
 import { TechnicalIndicators } from '@/components/stock/TechnicalIndicators'
-import { formatPrice, formatPercent } from '@/lib/format'
+import { StockHeader } from '@/components/stock/StockHeader'
+import { TimeRangeSelector, RANGES } from '@/components/stock/TimeRangeSelector'
+import { CompanyInfo } from '@/components/stock/CompanyInfo'
 import { sma, ema, bollingerBands, rsi, macd } from '@/lib/indicators'
 
 export const Route = createFileRoute('/stock/$ticker')({
@@ -15,8 +17,14 @@ export const Route = createFileRoute('/stock/$ticker')({
 
 function StockDetail() {
   const { ticker } = Route.useParams()
-  const { data, isLoading, error } = useChart(ticker)
   const activeIndicators = usePreferencesStore((s) => s.activeIndicators)
+
+  const [rangeLabel, setRangeLabel] = useState('1Y')
+  const [chartParams, setChartParams] = useState<{ interval: string; period1?: number; period2?: number }>({
+    interval: '1d',
+  })
+
+  const { data, isLoading, error } = useChart(ticker, chartParams.interval, chartParams.period1, chartParams.period2)
 
   useStockWebSocket(ticker)
 
@@ -49,30 +57,27 @@ function StockDetail() {
   }
 
   const { bars, quote } = data
-  const isPositive = quote.change >= 0
 
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-3xl font-bold">{quote.symbol}</h1>
-          <span className="text-zinc-500">{quote.name}</span>
-          <span className="text-xs text-zinc-600">{quote.exchange}</span>
-        </div>
-        <div className="mt-1 flex items-baseline gap-3">
-          <span className="text-3xl font-bold tabular-nums">{formatPrice(quote.price)}</span>
-          <span className={`text-lg font-medium tabular-nums ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            {isPositive ? '+' : ''}{formatPrice(quote.change)} ({formatPercent(quote.changePercent)})
-          </span>
-        </div>
-      </div>
+      <StockHeader quote={quote} />
 
-      <TechnicalIndicators />
+      <div className="flex items-center justify-between">
+        <TimeRangeSelector
+          activeLabel={rangeLabel}
+          onSelect={(interval, period1, period2) => {
+            const range = RANGES.find((r) => r.interval === interval && (r.periodMs ? true : !period1))
+            setRangeLabel(range?.label ?? '1Y')
+            setChartParams({ interval, period1, period2 })
+          }}
+        />
+        <TechnicalIndicators />
+      </div>
 
       <CandlestickChart
         bars={bars}
         height={500}
-        interval="1d"
+        interval={chartParams.interval}
         indicators={{
           sma: indicatorData.sma,
           ema: indicatorData.ema,
@@ -80,13 +85,10 @@ function StockDetail() {
         }}
       />
 
-      {indicatorData.rsi && (
-        <RsiChart bars={bars} rsiValues={indicatorData.rsi} />
-      )}
+      {indicatorData.rsi && <RsiChart bars={bars} rsiValues={indicatorData.rsi} />}
+      {indicatorData.macd && <MacdChart bars={bars} macdValues={indicatorData.macd} />}
 
-      {indicatorData.macd && (
-        <MacdChart bars={bars} macdValues={indicatorData.macd} />
-      )}
+      <CompanyInfo quote={quote} />
     </div>
   )
 }
