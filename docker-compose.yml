@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: stocksense
+      POSTGRES_USER: stocksense
+      POSTGRES_PASSWORD: stocksense
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ./server
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://stocksense:stocksense@postgres:5432/stocksense
+      PORT: "3001"
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
