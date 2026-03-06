@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { createNodeWebSocket } from '@hono/node-ws'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
@@ -7,7 +8,6 @@ import { stocks } from './routes/stocks.js'
 import { portfolio } from './routes/portfolio.js'
 import { watchlist } from './routes/watchlist.js'
 import { priceStream } from './services/websocket.js'
-import 'dotenv/config'
 
 const app = new Hono()
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app })
