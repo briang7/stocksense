@@ -1,4 +1,5 @@
-export function formatPrice(value: number): string {
+export function formatPrice(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '$0.00'
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -15,7 +16,8 @@ export function formatLargeNumber(value: number): string {
   return String(value)
 }
 
-export function formatPercent(value: number): string {
+export function formatPercent(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '0.00%'
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 }
 

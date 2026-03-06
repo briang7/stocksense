@@ -24,9 +24,9 @@ export function TopMovers() {
   }
 
   const sorted = [...quotes].sort((a, b) => {
-    if (tab === 'gainers') return b.changePercent - a.changePercent
-    if (tab === 'losers') return a.changePercent - b.changePercent
-    return b.volume - a.volume
+    if (tab === 'gainers') return (b.changePercent ?? 0) - (a.changePercent ?? 0)
+    if (tab === 'losers') return (a.changePercent ?? 0) - (b.changePercent ?? 0)
+    return (b.volume ?? 0) - (a.volume ?? 0)
   })
 
   const display = sorted.slice(0, 8)
@@ -50,7 +50,7 @@ export function TopMovers() {
       </div>
       <div className="space-y-1">
         {display.map((q) => {
-          const isPositive = q.changePercent >= 0
+          const isPositive = (q.changePercent ?? 0) >= 0
           return (
             <Link
               key={q.symbol}
